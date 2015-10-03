@@ -42,17 +42,16 @@ object start extends App{
     var actualumnodes = 0
     var completednodes = 0 // nodes that exceed maximum hopcount
 
-    println("Leadnodes numofnodes \n"+numofnodes)
 //Initially all alive
     //var startrandomnode: ActorRef
-    if( topo == "3D" || topo == "check3dimperfect") {
+    if( topo == "3D" || topo == "3Dimp") {
        n = math.ceil(math.cbrt(numofnodes)).toInt
       actualumnodes = n*n*n
     }
     else
        actualumnodes = numofnodes
     val activeNodes = new Array[Int](actualumnodes)
-println("\nactualnodes"+actualumnodes+"n"+n)
+	println("\nactualnodes "+actualumnodes)
     for(i <-0 to actualumnodes -1)
       activeNodes(i) = 1
    val workers = new Array [ActorRef](actualumnodes)
@@ -62,7 +61,7 @@ println("\nactualnodes"+actualumnodes+"n"+n)
 
 
 
-        println("\n line noofnodes"+numofnodes)
+     //   println("\n line noofnodes"+numofnodes)
         for(currentnode:Int <- 0 to numofnodes-1){
           if(currentnode ==0) neighbours(0)
           else if(currentnode == numofnodes-1)
@@ -72,15 +71,11 @@ println("\nactualnodes"+actualumnodes+"n"+n)
             neighbours(0) = currentnode - 1
             neighbours(1) = currentnode + 1
           }
-	workers(currentnode) = system.actorOf(Props(new Workers(currentnode,topo,
+	workers(currentnode) = context.actorOf(Props(new Workers(currentnode,topo,
             workers,numofnodes,self,activeNodes,neighbours,0,0,0,0)))
 
         }
       case "3D" =>
-
-        //val neighbours = new Array[Int](6)
-
-
         var l=0
         var index: Int = 0
         var currentnode = 0
@@ -89,40 +84,30 @@ println("\nactualnodes"+actualumnodes+"n"+n)
           for(j:Int <- 0 to n-1)
             for(k:Int <- 0 to n-1)
             {
-              index = i+ n *(j+ n*k)
-              l=0;
-              if(k>0){
-                neighbours(l)=i+ n *(j+ n*(k-1)) // index as [i][j][k-1]
-                l=l+1
-              }
-              if(k<numofnodes){
-                neighbours(l)=i+ n *(j+ n*k+1)
-                l=l+1
-              }
-              if(j>0){
-                neighbours(l)=i+ n *(j-1+ n*k)
-                l=l+1
-              }
-              if(j<numofnodes){
-                neighbours(l)=i+ n *(j+1 + n*k)
-                l=l+1
-              }
-              if(i>0){
-                neighbours(l)=i-1 + n *(j+ n*k)
-                l=l+1
-              }
-              if(i<numofnodes){
-                neighbours(l)=i+1+ n *(j+ n*k)
-                l=l+1
-              }
+	      currentnode = (i*n + j)*n + k
               if(currentnode < n*n*n) {
-                workers(currentnode) = system.actorOf(Props(new Workers(currentnode, topo,
+                workers(currentnode) = context.actorOf(Props(new Workers(currentnode, topo,
                   workers, numofnodes, self, activeNodes, neighbours, l, i, j, k)))
-
-                currentnode = currentnode + 1
+		// println("\nCreating Worker Currentnode"+ currentnode)	  
               }
             }
-      case "3DImp"=>
+      case "3Dimp"=>
+        var l=0
+        var index: Int = 0
+        var currentnode = 0
+
+        for(i:Int <- 0 to n-1)
+          for(j:Int <- 0 to n-1)
+            for(k:Int <- 0 to n-1)
+            {
+	      currentnode = (i*n + j)*n + k
+              if(currentnode < n*n*n) {
+                workers(currentnode) = context.actorOf(Props(new Workers(currentnode, topo,
+                  workers, numofnodes, self, activeNodes, neighbours, l, i, j, k)))
+		// println("\nCreating Worker Currentnode"+ currentnode)	  
+              }
+            }
+
       case "Full" =>
       case _=>
 
@@ -136,7 +121,7 @@ println("\nactualnodes"+actualumnodes+"n"+n)
     def receive = {
       case simulate() =>
         var startnode = 0//scala.util.Random.nextInt(numofnodes) //master sends msg to random node
-        println("Simulate start\n")
+      //  println("Simulate start\n")
         if(algo.equalsIgnoreCase ("gossip"))
         {
           println("Simulate Gossiping start\n")
@@ -150,25 +135,24 @@ println("\nactualnodes"+actualumnodes+"n"+n)
       case completed() =>
       case nodevisited(currentnode: Int, neighbor : Int) =>
         visitcount = visitcount+1
-        //println("\n visitcount"+ visitcount+" currentnode"+currentnode+" neigbor"+neighbor )
+	//println("   visitcount"+ visitcount)
+
         if( visitcount == numofnodes ) {
-          println("All nodes visited \n")
+          println("*****************All nodes visited \n")
           val endtime = System.currentTimeMillis()
           println(" Total time taken "+(endtime-starttime))
+	  //System.exit(1)
+	  
         }
-      case removenode (currentnode :Int)=>
-        println("\n removed node "+currentnode)
+      case removenode (nodetobestopped :Int)=>
+        println("\n removed node "+nodetobestopped)
         println("remove node \n")
-        workers.drop(currentnode)
-
-        completednodes = completednodes +1
-        if( completednodes == numofnodes) {
-          println("All nodes completed ")
-          System.exit(1)
-        }
+	activeNodes(nodetobestopped)=0
+        
 
       case _ =>
-
+	
+	
     }
 
   }
@@ -192,42 +176,50 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
 def receive = {
      case Gossiping() =>
        if (completed == false) {
-
+	//println("currentnode " + currentnode +":Visit Count "+noofvisit)
          if (noofvisit == 0)
+	{
            Lead ! nodevisited(currentnode, selectedneighbor)
+	}
          if (noofvisit == visitgossip_max) {
            completed = true
+		context.stop(self)
            Lead ! removenode(currentnode)
          }
          topo match {
            case "line" =>
-             if (!sender.equals(self)) {
+             if (!sender.equals(self)) 
                noofvisit = noofvisit + 1
                selectedneighbor = line_findneighbor(currentnode)
                if (activeNodes(selectedneighbor) != 0) {
-                 println("\n currentnode "+currentnode +"selectedneighbor"+ selectedneighbor)
+           //      println("\n currentnode "+currentnode +"selectedneighbor"+ selectedneighbor)
+			  println("selectedneighbor"+ selectedneighbor + "Visit Count" + (activeNodes(selectedneighbor)-1))
+		
                  workers(selectedneighbor) ! Gossiping()
                }
-             }
-
+             	
+		
 	            // val retry = scala.concurrent.duration.FiniteDuration(30, "milliseconds")
 	             // context.system.scheduler.scheduleOnce(retry, self, Gossiping())
 
            case "3D" =>
-             if (!sender.equals(self)) {
+             if (!sender.equals(self)) 
                noofvisit = noofvisit + 1
                selectedneighbor = ThreeD_findneighbor(currentnode, false, l,row,col,ht)
                val n = math.ceil(math.cbrt(numofnodes)).toInt
                val boundary = n * n * n
 		
-		println("\n Boundary " + boundary + "selectedneighbor" + selectedneighbor)
+		//println("\n Boundary " + boundary + " selectedneighbor " + selectedneighbor)
                if(selectedneighbor < boundary) {
                  if (activeNodes(selectedneighbor) != 0) {
-                   println("\n currentnode " + currentnode + "selectedneighbor" + selectedneighbor) //+ "i" + ht + "j" + col + "k" + row)
+    println("selectedneighbor "+ selectedneighbor + ":	Visit Count " + activeNodes(selectedneighbor))
+			activeNodes(selectedneighbor)=activeNodes(selectedneighbor)+1
+		 //   if(activeNodes(selectedneighbor) > visitgossip_max)  
+	             workers(selectedneighbor) ! Gossiping()
+		    //else
+                    // workers(selectedneighbor) ! removenode(selectedneighbor)
 
-                     workers(selectedneighbor) ! Gossiping()
-
-                 }
+                 
                }
              }
            // import system.dispatcher
@@ -235,20 +227,21 @@ def receive = {
 	     //       val retry = scala.concurrent.duration.FiniteDuration(30, "milliseconds")
               //context.system.scheduler.scheduleOnce(retry, self, Gossiping())
 
-           case "3dimp" =>
-             if (!sender.equals(self)) {
+           case "3Dimp" =>
+               if (!sender.equals(self)) 
                noofvisit = noofvisit + 1
                selectedneighbor = ThreeD_findneighbor(currentnode, true, l,row,col,ht)
                val n = math.ceil(math.cbrt(numofnodes)).toInt
                val boundary = n * n * n
-
+		
+		//println("\n Boundary " + boundary + " selectedneighbor " + selectedneighbor)
                if(selectedneighbor < boundary) {
                  if (activeNodes(selectedneighbor) != 0) {
-                   println("\n currentnode " + currentnode + "selectedneighbor" + selectedneighbor + "i" + ht + "j" + col + "k" + row)
-
+    println("selectedneighbor "+ selectedneighbor + ":	Visit Count " + activeNodes(selectedneighbor))
+			activeNodes(selectedneighbor)=activeNodes(selectedneighbor)+1
                      workers(selectedneighbor) ! Gossiping()
 
-                 }
+                 
                }
              }
  	     //   import system.dispatcher
@@ -256,6 +249,7 @@ def receive = {
 	         //   context.system.scheduler.scheduleOnce(retry, self, Gossiping())
 
          }
+		
 
        }
 
@@ -269,7 +263,7 @@ def receive = {
                }
                topo match {
                  case "line" =>
-                   if (!sender.equals(self)) {
+                   if (!sender.equals(self)) 
                      var ratio_prev = s / w
                      s_self = s + s_self
                      w_self = w + w_self
@@ -283,9 +277,9 @@ def receive = {
                      s_self = s_self/2
                      w_self = w_self/2
                      workers(selectedneighbor) ! Pushsumpair(s_self , w_self )
-                   }
+                   
                case "3D"=>
-                   if (!sender.equals(self)) {
+                   if (!sender.equals(self)) 
                      var ratio_prev = s / w
                      s_self = s + s_self
                      w_self = w + w_self
@@ -299,9 +293,9 @@ def receive = {
                      s_self = s_self/2
                      w_self = w_self/2
                      workers(selectedneighbor) ! Pushsumpair(s_self , w_self )
-                   }
+                   
                   case "3dimp"=>
-                   if (!sender.equals(self)) {
+                   if (!sender.equals(self)) 
                      var ratio_prev = s / w
                      s_self = s + s_self
                      w_self = w + w_self
@@ -311,11 +305,11 @@ def receive = {
                      else
                        noofvisit = 0
 
-               	 selectedneighbor = ThreeD_findneighbor(currentnode, true, l,row,col,ht)
+               	 selectedneighbor = ThreeD_findneighbor(currentnode, false, l,row,col,ht)
                      s_self = s_self/2
                      w_self = w_self/2
                      workers(selectedneighbor) ! Pushsumpair(s_self , w_self )
-                   }
+                   
            
                }
              }
@@ -366,11 +360,12 @@ def receive = {
            }
            if(i<numofnodes){
              neigbourarray(l)=i+1+ n *(j+ n*k)
-             l=l+1
+            	 l=l+1
            }
 	   if(check3dimp){
-             neigbourarray(l)=Random.nextInt(n*n*n)
-             l=l+1
+		  l=l+1
+             neigbourarray(l)=Random.nextInt(n*n*n -1)
+           
 
 	}
         
@@ -378,6 +373,12 @@ def receive = {
   	// println("\n l "+l+"selectnext"+selectnext)
            return neigbourarray(selectnext)
          }
+def pingself()  {
+	val system =  akka.actor.ActorSystem("system")
+	import system.dispatcher
+ 	
+	val retry = scala.concurrent.duration.FiniteDurtion(10, "millisecond")
+	context.system.scheduler.scheduleOnce(retry, self, Gossiping())
        }
 
 
