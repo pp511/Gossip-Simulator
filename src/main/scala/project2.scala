@@ -210,8 +210,8 @@ def receive = {
                }
              }
 
-	             val retry = scala.concurrent.duration.FiniteDuration(30, "milliseconds")
-	              context.system.scheduler.scheduleOnce(retry, self, Gossiping())
+	            // val retry = scala.concurrent.duration.FiniteDuration(30, "milliseconds")
+	             // context.system.scheduler.scheduleOnce(retry, self, Gossiping())
 
            case "3D" =>
              if (!sender.equals(self)) {
@@ -219,20 +219,21 @@ def receive = {
                selectedneighbor = ThreeD_findneighbor(currentnode, false, l,row,col,ht)
                val n = math.ceil(math.cbrt(numofnodes)).toInt
                val boundary = n * n * n
-
+		
+		println("\n Boundary " + boundary + " selectedneighbor " + selectedneighbor)
                if(selectedneighbor < boundary) {
                  if (activeNodes(selectedneighbor) != 0) {
-                 //  println("\n currentnode " + currentnode + "selectedneighbor" + selectedneighbor + "i" + ht + "j" + col + "k" + row)
+                   println("\n currentnode " + currentnode + " selectedneighbor " + selectedneighbor) //+ "i" + ht + "j" + col + "k" + row)
 
                      workers(selectedneighbor) ! Gossiping()
 
                  }
                }
              }
-            import system.dispatcher
+           // import system.dispatcher
 
-	            val retry = scala.concurrent.duration.FiniteDuration(30, "milliseconds")
-              context.system.scheduler.scheduleOnce(retry, self, Gossiping())
+	     //       val retry = scala.concurrent.duration.FiniteDuration(30, "milliseconds")
+              //context.system.scheduler.scheduleOnce(retry, self, Gossiping())
 
            case "3dimp" =>
              if (!sender.equals(self)) {
@@ -243,16 +244,16 @@ def receive = {
 
                if(selectedneighbor < boundary) {
                  if (activeNodes(selectedneighbor) != 0) {
-                 //  println("\n currentnode " + currentnode + "selectedneighbor" + selectedneighbor + "i" + ht + "j" + col + "k" + row)
+                   println("\n currentnode " + currentnode + "selectedneighbor" + selectedneighbor + "i" + ht + "j" + col + "k" + row)
 
                      workers(selectedneighbor) ! Gossiping()
 
                  }
                }
              }
- 	        import system.dispatcher
-	            val retry = scala.concurrent.duration.FiniteDuration(30, "milliseconds")
-	            context.system.scheduler.scheduleOnce(retry, self, Gossiping())
+ 	     //   import system.dispatcher
+	       //     val retry = scala.concurrent.duration.FiniteDuration(30, "milliseconds")
+	         //   context.system.scheduler.scheduleOnce(retry, self, Gossiping())
 
          }
 
@@ -341,7 +342,7 @@ def receive = {
          def ThreeD_findneighbor(currentnode : Int, check3dimp: Boolean, numneigh: Int, k: Int, j: Int, i: Int):Int ={
            var l = 0
            val n = math.ceil(math.cbrt(numofnodes)).toInt
-           var neigbourarray = new Array[Int] (6)
+           var neigbourarray = new Array[Int] (7)
 
            if(k>0){
              neigbourarray(l)=i+ n *(j+ n*(k-1)) // index as [i][j][k-1]
