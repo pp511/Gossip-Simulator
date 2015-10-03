@@ -17,16 +17,27 @@
 [0m[[0minfo[0m] [0mCompiling 1 Scala source to /home/sokupa/workspace/Gossip/Gossip-Simulator/target/scala-2.10/classes...[0m
 [0m[[0mdebug[0m] [0mGetting compiler-interface from component compiler for Scala 2.10.1[0m
 [0m[[0mdebug[0m] [0mGetting compiler-interface from component compiler for Scala 2.10.1[0m
-[0m[[0mdebug[0m] [0mRunning cached compiler 2513eedc, interfacing (CompilerInterface) with Scala compiler version 2.10.1[0m
+[0m[[0mdebug[0m] [0mRunning cached compiler 3fa6c088, interfacing (CompilerInterface) with Scala compiler version 2.10.1[0m
 [0m[[0mdebug[0m] [0mCalling Scala compiler with arguments  (CompilerInterface):[0m
 [0m[[0mdebug[0m] [0m	-bootclasspath[0m
 [0m[[0mdebug[0m] [0m	/usr/lib/jvm/java-7-openjdk-amd64/jre/lib/resources.jar:/usr/lib/jvm/java-7-openjdk-amd64/jre/lib/rt.jar:/usr/lib/jvm/java-7-openjdk-amd64/jre/lib/sunrsasign.jar:/usr/lib/jvm/java-7-openjdk-amd64/jre/lib/jsse.jar:/usr/lib/jvm/java-7-openjdk-amd64/jre/lib/jce.jar:/usr/lib/jvm/java-7-openjdk-amd64/jre/lib/charsets.jar:/usr/lib/jvm/java-7-openjdk-amd64/jre/lib/rhino.jar:/usr/lib/jvm/java-7-openjdk-amd64/jre/lib/jfr.jar:/usr/lib/jvm/java-7-openjdk-amd64/jre/classes:/home/sokupa/.ivy2/cache/org.scala-lang/scala-library/jars/scala-library-2.10.1.jar[0m
 [0m[[0mdebug[0m] [0m	-classpath[0m
 [0m[[0mdebug[0m] [0m	/home/sokupa/workspace/Gossip/Gossip-Simulator/target/scala-2.10/classes:/home/sokupa/.ivy2/cache/com.typesafe.akka/akka-actor_2.10/bundles/akka-actor_2.10-2.1.1.jar:/home/sokupa/.ivy2/cache/com.typesafe/config/bundles/config-1.0.0.jar:/home/sokupa/.ivy2/cache/com.typesafe.akka/akka-remote_2.10/bundles/akka-remote_2.10-2.1.1.jar:/home/sokupa/.ivy2/cache/io.netty/netty/bundles/netty-3.5.8.Final.jar:/home/sokupa/.ivy2/cache/com.google.protobuf/protobuf-java/jars/protobuf-java-2.4.1.jar:/home/sokupa/.ivy2/cache/org.uncommons.maths/uncommons-maths/jars/uncommons-maths-1.2.2a.jar[0m
-[0m[[0mdebug[0m] [0mScala compilation took 31.240395381 s[0m
-[0m[[0mdebug[0m] [0mNew invalidations:[0m
-[0m[[0mdebug[0m] [0m	Set()[0m
-[0m[[0mdebug[0m] [0mInitial set of included nodes: Set()[0m
-[0m[[0mdebug[0m] [0mPreviously invalidated, but (transitively) depend on new invalidations:[0m
-[0m[[0mdebug[0m] [0m	Set()[0m
-[0m[[0mdebug[0m] [0mAll newly invalidated sources after taking into account (previously) recompiled sources:Set()[0m
+[0m[[31merror[0m] [0m/home/sokupa/workspace/Gossip/Gossip-Simulator/src/main/scala/project2.scala:214: Cannot find an implicit ExecutionContext, either require one yourself or import ExecutionContext.Implicits.global[0m
+[0m[[31merror[0m] [0m	              context.system.scheduler.scheduleOnce(retry, self, Gossiping())[0m
+[0m[[31merror[0m] [0m	                                                   ^[0m
+[0m[[31merror[0m] [0m/home/sokupa/workspace/Gossip/Gossip-Simulator/src/main/scala/project2.scala:232: not found: value system[0m
+[0m[[31merror[0m] [0m            import system.dispatcher[0m
+[0m[[31merror[0m] [0m                   ^[0m
+[0m[[31merror[0m] [0m/home/sokupa/workspace/Gossip/Gossip-Simulator/src/main/scala/project2.scala:235: Cannot find an implicit ExecutionContext, either require one yourself or import ExecutionContext.Implicits.global[0m
+[0m[[31merror[0m] [0m              context.system.scheduler.scheduleOnce(retry, self, Gossiping())[0m
+[0m[[31merror[0m] [0m                                                   ^[0m
+[0m[[31merror[0m] [0m/home/sokupa/workspace/Gossip/Gossip-Simulator/src/main/scala/project2.scala:253: not found: value system[0m
+[0m[[31merror[0m] [0m 	        import system.dispatcher[0m
+[0m[[31merror[0m] [0m 	               ^[0m
+[0m[[31merror[0m] [0m/home/sokupa/workspace/Gossip/Gossip-Simulator/src/main/scala/project2.scala:255: Cannot find an implicit ExecutionContext, either require one yourself or import ExecutionContext.Implicits.global[0m
+[0m[[31merror[0m] [0m	            context.system.scheduler.scheduleOnce(retry, self, Gossiping())[0m
+[0m[[31merror[0m] [0m	                                                 ^[0m
+[0m[[31merror[0m] [0m5 errors found[0m
+[0m[[0mdebug[0m] [0mCompilation failed (CompilerInterface)[0m
+[0m[[31merror[0m] [0m(compile:[31mcompileIncremental[0m) Compilation failed[0m

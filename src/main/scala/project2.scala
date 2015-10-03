@@ -45,7 +45,7 @@ object start extends App{
     println("Leadnodes numofnodes \n"+numofnodes)
 //Initially all alive
     //var startrandomnode: ActorRef
-    if( topo == "3D" || topo == "3Dimperfect") {
+    if( topo == "3D" || topo == "check3dimperfect") {
        n = math.ceil(math.cbrt(numofnodes)).toInt
       actualumnodes = n*n*n
     }
@@ -122,7 +122,7 @@ println("\nactualnodes"+actualumnodes+"n"+n)
                 currentnode = currentnode + 1
               }
             }
-      case "Imperfect 3D"=>
+      case "3DImp"=>
       case "Full" =>
       case _=>
 
@@ -150,7 +150,7 @@ println("\nactualnodes"+actualumnodes+"n"+n)
       case completed() =>
       case nodevisited(currentnode: Int, neighbor : Int) =>
         visitcount = visitcount+1
-        println("\n visitcount"+ visitcount+" currentnode"+currentnode+" neigbor"+neighbor )
+        //println("\n visitcount"+ visitcount+" currentnode"+currentnode+" neigbor"+neighbor )
         if( visitcount == numofnodes ) {
           println("All nodes visited \n")
           val endtime = System.currentTimeMillis()
@@ -209,10 +209,14 @@ def receive = {
                  workers(selectedneighbor) ! Gossiping()
                }
              }
+
+	             val retry = scala.concurrent.duration.FiniteDuration(30, "milliseconds")
+	              context.system.scheduler.scheduleOnce(retry, self, Gossiping())
+
            case "3D" =>
              if (!sender.equals(self)) {
                noofvisit = noofvisit + 1
-               selectedneighbor = ThreeD_findneighbor(currentnode, l,row,col,ht)
+               selectedneighbor = ThreeD_findneighbor(currentnode, false, l,row,col,ht)
                val n = math.ceil(math.cbrt(numofnodes)).toInt
                val boundary = n * n * n
 
@@ -225,6 +229,31 @@ def receive = {
                  }
                }
              }
+            import system.dispatcher
+
+	            val retry = scala.concurrent.duration.FiniteDuration(30, "milliseconds")
+              context.system.scheduler.scheduleOnce(retry, self, Gossiping())
+
+           case "3dimp" =>
+             if (!sender.equals(self)) {
+               noofvisit = noofvisit + 1
+               selectedneighbor = ThreeD_findneighbor(currentnode, true, l,row,col,ht)
+               val n = math.ceil(math.cbrt(numofnodes)).toInt
+               val boundary = n * n * n
+
+               if(selectedneighbor < boundary) {
+                 if (activeNodes(selectedneighbor) != 0) {
+                 //  println("\n currentnode " + currentnode + "selectedneighbor" + selectedneighbor + "i" + ht + "j" + col + "k" + row)
+
+                     workers(selectedneighbor) ! Gossiping()
+
+                 }
+               }
+             }
+ 	        import system.dispatcher
+	            val retry = scala.concurrent.duration.FiniteDuration(30, "milliseconds")
+	            context.system.scheduler.scheduleOnce(retry, self, Gossiping())
+
          }
 
        }
@@ -254,7 +283,39 @@ def receive = {
                      w_self = w_self/2
                      workers(selectedneighbor) ! Pushsumpair(s_self , w_self )
                    }
+               case "3D"=>
+                   if (!sender.equals(self)) {
+                     var ratio_prev = s / w
+                     s_self = s + s_self
+                     w_self = w + w_self
+                     var ratio_cur = s_self / w_self
+                     if (math.abs(ratio_prev - ratio_cur) < Killratio)
+                       noofvisit = noofvisit + 1
+                     else
+                       noofvisit = 0
 
+               	 selectedneighbor = ThreeD_findneighbor(currentnode, false, l,row,col,ht)
+                     s_self = s_self/2
+                     w_self = w_self/2
+                     workers(selectedneighbor) ! Pushsumpair(s_self , w_self )
+                   }
+                  case "3dimp"=>
+                   if (!sender.equals(self)) {
+                     var ratio_prev = s / w
+                     s_self = s + s_self
+                     w_self = w + w_self
+                     var ratio_cur = s_self / w_self
+                     if (math.abs(ratio_prev - ratio_cur) < Killratio)
+                       noofvisit = noofvisit + 1
+                     else
+                       noofvisit = 0
+
+               	 selectedneighbor = ThreeD_findneighbor(currentnode, true, l,row,col,ht)
+                     s_self = s_self/2
+                     w_self = w_self/2
+                     workers(selectedneighbor) ! Pushsumpair(s_self , w_self )
+                   }
+           
                }
              }
 
@@ -277,7 +338,7 @@ def receive = {
            }
 
          }
-         def ThreeD_findneighbor(currentnode : Int, numneigh: Int, k: Int, j: Int, i: Int):Int ={
+         def ThreeD_findneighbor(currentnode : Int, check3dimp: Boolean, numneigh: Int, k: Int, j: Int, i: Int):Int ={
            var l = 0
            val n = math.ceil(math.cbrt(numofnodes)).toInt
            var neigbourarray = new Array[Int] (6)
@@ -306,9 +367,14 @@ def receive = {
              neigbourarray(l)=i+1+ n *(j+ n*k)
              l=l+1
            }
+	   if(check3dimp){
+             neigbourarray(l)=Random.nextInt(n*n*n)
+             l=l+1
+
+	}
         
             var selectnext = Random.nextInt(l)
-  	 println("\n l "+l+"selectnext"+selectnext)
+  	// println("\n l "+l+"selectnext"+selectnext)
            return neigbourarray(selectnext)
          }
        }
