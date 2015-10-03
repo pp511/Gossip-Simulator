@@ -34,16 +34,16 @@ object start extends App{
 
     
     val system = ActorSystem("Workers")
+    val neighbours = new Array[Int](6)
  // For linear case
     var neighbourcount = 1
     var n = 0
     var visitcount = 0
     var actualumnodes = 0
     var completednodes = 0 // nodes that exceed maximum hopcount
-    var activeNodes = new Array[Int](numofnodes)
+
     println("Leadnodes numofnodes \n"+numofnodes)
-    for(i <-0 to numofnodes -1)
-      activeNodes(i) = 1//Initially all alive
+//Initially all alive
     //var startrandomnode: ActorRef
     if( topo == "3D" || topo == "3Dimperfect") {
        n = math.ceil(math.cbrt(numofnodes)).toInt
@@ -51,12 +51,16 @@ object start extends App{
     }
     else
        actualumnodes = numofnodes
+    val activeNodes = new Array[Int](actualumnodes)
+println("\nactualnodes"+actualumnodes+"n"+n)
+    for(i <-0 to actualumnodes -1)
+      activeNodes(i) = 1
    val workers = new Array [ActorRef](actualumnodes)
     topo match{
       case "line" =>
         //startrandomnode=buildline(numofnodes)
 
-        val neighbours = new Array[Int](2)
+
 
         println("\n line noofnodes"+numofnodes)
         for(currentnode:Int <- 0 to numofnodes-1){
@@ -69,21 +73,21 @@ object start extends App{
             neighbours(1) = currentnode + 1
           }
 	workers(currentnode) = system.actorOf(Props(new Workers(currentnode,topo,
-            workers,numofnodes,self,activeNodes,neighbours,0)))
+            workers,numofnodes,self,activeNodes,neighbours,0,0,0,0)))
 
         }
       case "3D" =>
 
-        val neighbours = new Array[Int](6)
+        //val neighbours = new Array[Int](6)
 
 
         var l=0
         var index: Int = 0
         var currentnode = 0
 
-        for(i:Int <- 0 until n)
-          for(j:Int <- 0 until n)
-            for(k:Int <- 0 until n)
+        for(i:Int <- 0 to n-1)
+          for(j:Int <- 0 to n-1)
+            for(k:Int <- 0 to n-1)
             {
               index = i+ n *(j+ n*k)
               l=0;
@@ -111,9 +115,12 @@ object start extends App{
                 neighbours(l)=i+1+ n *(j+ n*k)
                 l=l+1
               }
-              workers(currentnode)=system.actorOf(Props(new Workers(currentnode,topo,
-                workers,numofnodes,self,activeNodes,neighbours,l)))
-              currentnode = currentnode + 1
+              if(currentnode < n*n*n) {
+                workers(currentnode) = system.actorOf(Props(new Workers(currentnode, topo,
+                  workers, numofnodes, self, activeNodes, neighbours, l, i, j, k)))
+
+                currentnode = currentnode + 1
+              }
             }
       case "Imperfect 3D"=>
       case "Full" =>
@@ -167,7 +174,7 @@ object start extends App{
   }
 
 
-class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int,Lead:ActorRef,activeNodes:Array[Int],neighbours:Array[Int],l: Int) extends Actor
+class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int,Lead:ActorRef,activeNodes:Array[Int],neighbours:Array[Int],l: Int, row: Int, col: Int, ht: Int) extends Actor
 {
     val visitgossip_max = 20
     val visitpushsum_max = 3
@@ -198,17 +205,24 @@ def receive = {
                noofvisit = noofvisit + 1
                selectedneighbor = line_findneighbor(currentnode)
                if (activeNodes(selectedneighbor) != 0) {
-                 //println("\n currentnode selectedneighbor"+currentnode + selectedneighbor)
+                 println("\n currentnode "+currentnode +"selectedneighbor"+ selectedneighbor)
                  workers(selectedneighbor) ! Gossiping()
                }
              }
            case "3D" =>
              if (!sender.equals(self)) {
                noofvisit = noofvisit + 1
-               selectedneighbor = ThreeD_findneighbor(currentnode, l)
-               if (activeNodes(selectedneighbor) != 0) {
-                 //println("\n currentnode selectedneighbor"+currentnode + selectedneighbor)
-                 workers(selectedneighbor) ! Gossiping()
+               selectedneighbor = ThreeD_findneighbor(currentnode, l,row,col,ht)
+               val n = math.ceil(math.cbrt(numofnodes)).toInt
+               val boundary = n * n * n
+
+               if(selectedneighbor < boundary) {
+                 if (activeNodes(selectedneighbor) != 0) {
+                 //  println("\n currentnode " + currentnode + "selectedneighbor" + selectedneighbor + "i" + ht + "j" + col + "k" + row)
+
+                     workers(selectedneighbor) ! Gossiping()
+
+                 }
                }
              }
          }
@@ -259,13 +273,43 @@ def receive = {
                return currentnode - 1
              else
                return currentnode + 1
+             //return neighbours(selectnext)
            }
 
          }
-         def ThreeD_findneighbor(currentnode : Int, numneigh: Int):Int ={
-          var selectnext = Random.nextInt(numneigh)
-           return neighbours(selectnext)
+         def ThreeD_findneighbor(currentnode : Int, numneigh: Int, k: Int, j: Int, i: Int):Int ={
+           var l = 0
+           val n = math.ceil(math.cbrt(numofnodes)).toInt
+           var neigbourarray = new Array[Int] (6)
 
+           if(k>0){
+             neigbourarray(l)=i+ n *(j+ n*(k-1)) // index as [i][j][k-1]
+             l=l+1
+           }
+           if(k<numofnodes){
+             neigbourarray(l)=i+ n *(j+ n*k+1)
+             l=l+1
+           }
+           if(j>0){
+             neigbourarray(l)=i+ n *(j-1+ n*k)
+             l=l+1
+           }
+           if(j<numofnodes){
+             neigbourarray(l)=i+ n *(j+1 + n*k)
+             l=l+1
+           }
+           if(i>0){
+             neigbourarray(l)=i-1 + n *(j+ n*k)
+             l=l+1
+           }
+           if(i<numofnodes){
+             neigbourarray(l)=i+1+ n *(j+ n*k)
+             l=l+1
+           }
+        
+            var selectnext = Random.nextInt(l)
+  	 println("\n l "+l+"selectnext"+selectnext)
+           return neigbourarray(selectnext)
          }
        }
 
