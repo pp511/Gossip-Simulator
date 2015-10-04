@@ -1,13 +1,14 @@
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 
 import scala.util.Random
+import akka.actor.PoisonPill
 
-
-case class nodevisited(currentnode: Int, selectedneighbor: Int)
+case class nodevisited(currentnode: Int, selectedneighbor: Int, algo: String)
 case class simulate()
-case class removenode(currentnode: Int)
+case class removenode(currentnode: Int,algo: String)
 case class Gossiping()
 case class completed()
+case class fail (node:Int)
 case class Pushsumpair ( s:Double, w: Double)
 object start extends App{
 
@@ -16,12 +17,6 @@ object start extends App{
        var algo = args(1)
        var topo = args(2)
        val system = ActorSystem("Gossipsimulator")
-   /*    if(topo =="3D" || topo =="3D imperfect")
-       {
-         var temp = math.floor(math.cbrt(numofnodes))
-         numofnodes=math.pow(temp,3).toInt
-
-       }*/
        var firstactor = system.actorOf(Props(new LeadNode(numofnodes, algo, topo)),"LeadNode")
        firstactor ! simulate()
      }
@@ -35,15 +30,11 @@ object start extends App{
     
     val system = ActorSystem("Workers")
     val neighbours = new Array[Int](6)
- // For linear case
     var neighbourcount = 1
     var n = 0
     var visitcount = 0
     var actualumnodes = 0
-    var completednodes = 0 // nodes that exceed maximum hopcount
-
-//Initially all alive
-    //var startrandomnode: ActorRef
+    var completednodes = 0 
     if( topo == "3D" || topo == "3Dimp") {
        n = math.ceil(math.cbrt(numofnodes)).toInt
       actualumnodes = n*n*n
@@ -68,16 +59,10 @@ object start extends App{
       case _=>
 
     }
-    //def buildline(numofnodes: Int ): ActorRef
     val starttime = System.currentTimeMillis()
-
-
-
-
     def receive = {
       case simulate() =>
-        var startnode = 0//scala.util.Random.nextInt(numofnodes) //master sends msg to random node
-      //  println("Simulate start\n")
+        var startnode = 0
         if(algo.equalsIgnoreCase ("gossip"))
         {
           println("Simulate Gossiping start\n")
@@ -89,33 +74,30 @@ object start extends App{
           println("Incorrect algorithm \n")
 
       case completed() =>
-      case nodevisited(currentnode: Int, neighbor : Int) =>
+      case nodevisited(currentnode: Int, neighbor : Int, algo : String) =>
         visitcount = visitcount+1
-	//println("   visitcount"+ visitcount)
-
         if( visitcount == numofnodes ) {
-          println("*****************All nodes visited \n")
+          println("************All nodes visited ***************\n")
+          println("***************"+algo+"******************")
           val endtime = System.currentTimeMillis()
           println(" Total time taken "+(endtime-starttime))
 	  context.system.shutdown()
 	  
         }
-      case removenode (nodetobestopped :Int)=>
+      case removenode (nodetobestopped :Int, algo: String)=>
         println("\n removed node "+nodetobestopped)
         println("remove node \n")
 	activeNodes(nodetobestopped)=0
-        
-
-      case _ =>
-	
+      case fail(killednode: Int) =>
+	println("This node"+killednode+" got failed")
+	self ! PoisonPill
+      case _ =>	
 	
     }
-
    def BuildLine(){
         for(currentnode:Int <- 0 to numofnodes-1){
 	      workers(currentnode) = context.actorOf(Props(new Workers(currentnode,topo,
             workers,numofnodes,self,activeNodes,neighbours,0,0,0,0)))
-
         }
   }
    def Build3D(){
@@ -156,15 +138,16 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
   val visitpushsum_max = 3
   val checkratio = math.pow(10, -10)
   val n = math.ceil(math.cbrt(numofnodes))
- var s =(row*n +col)*n+ht
-  var w = 1.0
+  var s =(row*n +col)*n+ht
+  var w = 1
   var ratio = s / w
   var noofvisit = 0
-  // no of times a node is visited
   var completed = false
-  // set true when hop count is exceeded
-  var selectedneighbor = 0
-  val Killratio = math.pow(10, -9)
+  var selectedneighbor:Int= 0
+  val Killratio = math.pow(10, -10)
+  var killflag = false
+  val killjump = 3
+
   def line_findneighbor(currentnode: Int): Int = {
     if (currentnode == 0)
       return 1
@@ -177,9 +160,8 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
       else
         return currentnode + 1
     }
-
   }
-
+/******************************calculates Neighbour 3D using (row *n+col)*n+height*****************************/
   def ThreeD_findneighbor(currentnode: Int, check3dimp: Boolean, numneigh: Int, k: Int, j: Int, i: Int): Int = {
     var l = 0
     val n = math.ceil(math.cbrt(numofnodes)).toInt
@@ -209,9 +191,10 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
       neigbourarray(l) = i + 1 + n * (j + n * k)
       l = l + 1
     }
-    if (check3dimp) {   
-     neigbourarray(l) = (Random.nextInt(n * n * n ))  % (n*n*n)
-   l = l + 1
+    if (check3dimp) {
+      
+     neigbourarray(l) = Random.nextInt(n * n* n) %(n*n*n)
+  l = l + 1
     }
 
     var selectnext = Random.nextInt(l)
@@ -219,7 +202,7 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
   }
 
   def pingself(algo: String) {
-    val system = akka.actor.ActorSystem("system")
+    val system = akka.actor.ActorSystem("Gossipsimulator")
     import system.dispatcher
 
     val retry = scala.concurrent.duration.FiniteDuration(10, "milliseconds")
@@ -228,24 +211,45 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
     else
       context.system.scheduler.scheduleOnce(retry, self, Pushsumpair(s, w))
   }
-  // var ThreeDflag: Boolean
+ def kill(selectedneighbor: Int) {
+   if (selectedneighbor % killjump == 0) {
+     activeNodes(selectedneighbor) = 0
+     killflag = false
+     Lead ! fail(selectedneighbor)
+   }
+ }
   def receive = {
-    case Gossiping() =>
+    case Gossiping() =>{
       if (completed == false) {
-        //println("currentnode " + currentnode +":Visit Count "+noofvisit)
         if (noofvisit == 0) {
-          Lead ! nodevisited(currentnode, selectedneighbor)
+          Lead ! nodevisited(currentnode, selectedneighbor,"Gossiping")
         }
-        if (noofvisit == visitgossip_max) {
+	         if(killflag == true){
+            topo match {
+	           case "line" => 
+		        selectedneighbor = line_findneighbor(currentnode)
+ 		      kill(selectedneighbor)
+           case  "3D" =>
+		      selectedneighbor = ThreeD_findneighbor(currentnode, false, l, row, col, ht)
+		      kill(selectedneighbor)
+           case  "3Dimp" =>
+		      selectedneighbor = ThreeD_findneighbor(currentnode, false, l, row, col, ht)
+		    kill(selectedneighbor)	
+	       case "full" =>
+		      selectedneighbor = Random.nextInt(numofnodes)
+		      kill(selectedneighbor)		
+          }
+          }
+         }
+          if (noofvisit == visitgossip_max) {
           completed = true
-          // context.stop(self)
-          Lead ! removenode(currentnode)
+          Lead ! removenode(currentnode,"Gossiping")
         }
         else
           topo match {
             case "line" =>
               if (!sender.equals(self))
-                noofvisit = noofvisit + 1
+                noofvisit = activeNodes(selectedneighbor) - 1
               selectedneighbor = line_findneighbor(currentnode)
               if (activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitgossip_max) {
                 activeNodes(selectedneighbor) = activeNodes(selectedneighbor) + 1
@@ -255,17 +259,12 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
 
               pingself("gossip")
 
-            // val retry = scala.concurrent.duration.FiniteDuration(30, "milliseconds")
-            // context.system.scheduler.scheduleOnce(retry, self, Gossiping())
-
             case "3D" =>
               if (!sender.equals(self))
-                noofvisit = noofvisit + 1
+                noofvisit = activeNodes(selectedneighbor) - 1
               selectedneighbor = ThreeD_findneighbor(currentnode, false, l, row, col, ht)
               val n = math.ceil(math.cbrt(numofnodes)).toInt
               val boundary = n * n * n
-
-              //println("\n Boundary " + boundary + " selectedneighbor " + selectedneighbor)
               if (selectedneighbor < boundary) {
                 if (activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitgossip_max) {
                   activeNodes(selectedneighbor) = activeNodes(selectedneighbor) + 1
@@ -276,15 +275,14 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
 
               pingself("gossip")
             case "3Dimp" =>
-              if (!sender.equals(self))
-                noofvisit = noofvisit + 1
+
               selectedneighbor = ThreeD_findneighbor(currentnode, true, l, row, col, ht)
               val n = math.ceil(math.cbrt(numofnodes)).toInt
               val boundary = n * n * n
-
-              //println("\n Boundary " + boundary + " selectedneighbor " + selectedneighbor)
               if (selectedneighbor < boundary) {
                 if (activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitgossip_max) {
+                  if (!sender.equals(self))
+                    noofvisit = activeNodes(selectedneighbor) - 1
                   activeNodes(selectedneighbor) = activeNodes(selectedneighbor) + 1
                   println("selectedneighbor " + selectedneighbor + ":	Visit Count " + (activeNodes(selectedneighbor) - 1))
                   workers(selectedneighbor) ! Gossiping()
@@ -295,7 +293,7 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
               pingself("gossip")
             case "full" =>
               if (!sender.equals(self))
-                noofvisit = noofvisit + 1
+                noofvisit = activeNodes(selectedneighbor) - 1
               selectedneighbor = Random.nextInt(numofnodes)
               if (activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitgossip_max) {
                 activeNodes(selectedneighbor) = activeNodes(selectedneighbor) + 1
@@ -306,15 +304,15 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
           }
       }
 
-    case Pushsumpair(s: Double, w: Double) =>
+    case Pushsumpair(s: Double, w: Double) =>{
       if (completed == false) {
         val n = math.ceil(math.cbrt(numofnodes)).toInt
-        val boundary = n * n * n
+        val boundary = n * n * n 	
         if (noofvisit == 0)
-          Lead ! nodevisited(currentnode, selectedneighbor)
+          Lead ! nodevisited(currentnode, selectedneighbor,"Pushsum")
         if (noofvisit == visitpushsum_max) {
           completed = true
-          Lead ! removenode(currentnode)
+          Lead ! removenode(currentnode,"Pushsum")
         }
         else
           topo match {
@@ -334,7 +332,6 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
 	}
      	pingself("push")
 
-      
             case "3D" =>
               var ratio_prev = this.s / this.w
               var ratio_cur = (this.s+s) /(this.w+w )
@@ -385,11 +382,9 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
           pingself("push")	
             case _ =>
           }
-
-
+        }
+  	}
   }
 
-
-  }
 }
 

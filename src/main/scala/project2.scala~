@@ -142,21 +142,28 @@ object start extends App{
 	}
   }
 
-
+/********************************************************************************************************************************************
+***********************************************Class Worker**********************************************************************************
+*Functions: *****************************Functions to Find Neighbour of given topology ******************************************************
+*line_findneighbor : returns neighbour of current node in line topology
+*ThreeD_findneighbor:returns neigbour for 3D and 3D imperfect topology check3dimp distinguishes both
+*pingself() : Retries after fixed instance of time
+*Class case : Gossiping() : Handles Gossip : Terminating condition visitgossip_max
+	      Pushsumpair(): Handles Gossip : Terminating condition visitpushsum_max and killratio *********************************************************************************************************************************************
+*********************************************************************************************************************************************/
 class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int,Lead:ActorRef,activeNodes:Array[Int],neighbours:Array[Int],l: Int, row: Int, col: Int, ht: Int) extends Actor {
   val visitgossip_max = 10
   val visitpushsum_max = 3
   val checkratio = math.pow(10, -10)
-  var s = currentnode
-  var w = 1
+  val n = math.ceil(math.cbrt(numofnodes))
+ var s =(row*n +col)*n+ht
+  var w = 1.0
   var ratio = s / w
   var noofvisit = 0
   // no of times a node is visited
   var completed = false
   // set true when hop count is exceeded
   var selectedneighbor = 0
-  var s_self: Double = currentnode
-  var w_self: Double = 1.0
   val Killratio = math.pow(10, -9)
   def line_findneighbor(currentnode: Int): Int = {
     if (currentnode == 0)
@@ -311,81 +318,70 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
         }
         else
           topo match {
-            case "line" => var ratio_prev = s / w
-              s_self = s + s_self
-              w_self = w + w_self
-              var ratio_cur = s_self / w_self
+            case "line" => var ratio_prev = this.s / this.w
+              var ratio_cur =( this.s +s )/ (this.w +w)
+              selectedneighbor = line_findneighbor(currentnode)
+              this.s = this.s / 2
+              this.w = this.w / 2
+           if (activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitpushsum_max) {
               if (math.abs(ratio_prev - ratio_cur) < Killratio && !sender.equals(self))
-                noofvisit = noofvisit + 1
+                noofvisit = activeNodes(selectedneighbor) - 1
               else
                 noofvisit = 0
-
-              selectedneighbor = line_findneighbor(currentnode)
-              s_self = s_self / 2
-              w_self = w_self / 2
-           if (activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitpushsum_max) {
                 activeNodes(selectedneighbor) = activeNodes(selectedneighbor) + 1
                 println("selectedneighbor " + selectedneighbor + ":	Visit Count " + (activeNodes(selectedneighbor) - 1))
-              workers(selectedneighbor) ! Pushsumpair(s_self, w_self)
+              workers(selectedneighbor) ! Pushsumpair(this.s, this.w)
 	}
      	pingself("push")
 
+      
             case "3D" =>
-              var ratio_prev = s / w
-              s_self = s + s_self
-              w_self = w + w_self
-              var ratio_cur = s_self / w_self
+              var ratio_prev = this.s / this.w
+              var ratio_cur = (this.s+s) /(this.w+w )
+              selectedneighbor = ThreeD_findneighbor(currentnode, false, l, row, col, ht)
+              this.s = this.s / 2
+              this.w = this.w / 2
+           if (selectedneighbor < boundary && activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitpushsum_max) {
               if (math.abs(ratio_prev - ratio_cur) < Killratio && !sender.equals(self))
-                noofvisit = noofvisit + 1
+                noofvisit = activeNodes(selectedneighbor) - 1
               else
                 noofvisit = 0
-
-              selectedneighbor = ThreeD_findneighbor(currentnode, false, l, row, col, ht)
-              s_self = s_self / 2
-              w_self = w_self / 2
-           if (selectedneighbor < boundary && activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitpushsum_max) {
                 activeNodes(selectedneighbor) = activeNodes(selectedneighbor) + 1
                 println("selectedneighbor " + selectedneighbor + ":	Visit Count " + (activeNodes(selectedneighbor) - 1))
-              workers(selectedneighbor) ! Pushsumpair(s_self, w_self)
+              workers(selectedneighbor) ! Pushsumpair(this.s, this.w)
 	   }
  	pingself("push")
-            case "3dimp" =>
-              var ratio_prev = s / w
-              s_self = s + s_self
-              w_self = w + w_self
-              var ratio_cur = s_self / w_self
+            case "3Dimp" =>
+              var ratio_prev = this.s / this.w
+              var ratio_cur = (this.s+s) / (this.w+w)
+              selectedneighbor = ThreeD_findneighbor(currentnode, true, l, row, col, ht)
+              this.s = this.s/2
+              this.w = this.w/2
+           if (selectedneighbor < boundary && activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitpushsum_max) {
+            println("selectedneighbor " + selectedneighbor + ":	Visit Count " + (activeNodes(selectedneighbor) - 1))
               if (math.abs(ratio_prev - ratio_cur) < Killratio && !sender.equals(self))
-                noofvisit = noofvisit + 1
+                noofvisit = activeNodes(selectedneighbor) - 1
               else
                 noofvisit = 0
-
-              selectedneighbor = ThreeD_findneighbor(currentnode, true, l, row, col, ht)
-              s_self = s_self / 2
-              w_self = w_self / 2
-           if (selectedneighbor < boundary && activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitpushsum_max) {
-                activeNodes(selectedneighbor) = activeNodes(selectedneighbor) + 1
-                println("selectedneighbor " + selectedneighbor + ":	Visit Count " + (activeNodes(selectedneighbor) - 1))
-              workers(selectedneighbor) ! Pushsumpair(s_self, w_self)
+                activeNodes(selectedneighbor) = activeNodes(selectedneighbor) + 1    
+              workers(selectedneighbor) ! Pushsumpair(this.s, this.w)
 	   }
        pingself("push")
            case "full" =>
-              var ratio_prev = s / w
-              s_self = s + s_self
-              w_self = w + w_self
-              var ratio_cur = s_self / w_self
+              var ratio_prev = this.s / this.w
+              var ratio_cur = (this.s+s) /(this.w+w)
+              selectedneighbor = Random.nextInt(numofnodes)
+              this.s = this.s / 2
+              this.w = this.w / 2
+           if (activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitpushsum_max) {
               if (math.abs(ratio_prev - ratio_cur) < Killratio && !sender.equals(self))
-                noofvisit = noofvisit + 1
+                noofvisit = activeNodes(selectedneighbor) - 1
               else
                 noofvisit = 0
-
-              selectedneighbor = Random.nextInt(numofnodes)
-              s_self = s_self / 2
-              w_self = w_self / 2
-           if (activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitpushsum_max) {
                 activeNodes(selectedneighbor) = activeNodes(selectedneighbor) + 1
                 println("selectedneighbor " + selectedneighbor + ":	Visit Count " + (activeNodes(selectedneighbor) - 1))
-              workers(selectedneighbor) ! Pushsumpair(s_self, w_self)
-		}
+              workers(selectedneighbor) ! Pushsumpair(this.s, this.w)
+		        }
           pingself("push")	
             case _ =>
           }
