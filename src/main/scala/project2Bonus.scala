@@ -89,8 +89,8 @@ object start extends App{
         println("remove node \n")
 	activeNodes(nodetobestopped)=0
       case fail(killednode: Int) =>
-	println("This node"+killednode+" got failed")
-	self ! PoisonPill
+	println("This node  "+killednode+"  got failed")
+	//self ! PoisonPill
       case _ =>	
 	
     }
@@ -145,8 +145,8 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
   var completed = false
   var selectedneighbor:Int= 0
   val Killratio = math.pow(10, -10)
-  var killflag = false
-  val killjump = 3
+  var killflag = true
+  val killjump = 5
 
   def line_findneighbor(currentnode: Int): Int = {
     if (currentnode == 0)
@@ -260,13 +260,14 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
               pingself("gossip")
 
             case "3D" =>
-              if (!sender.equals(self))
-                noofvisit = activeNodes(selectedneighbor) - 1
+
               selectedneighbor = ThreeD_findneighbor(currentnode, false, l, row, col, ht)
               val n = math.ceil(math.cbrt(numofnodes)).toInt
               val boundary = n * n * n
               if (selectedneighbor < boundary) {
                 if (activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitgossip_max) {
+            	  if (!sender.equals(self))
+                	noofvisit = activeNodes(selectedneighbor) - 1
                   activeNodes(selectedneighbor) = activeNodes(selectedneighbor) + 1
                   println("selectedneighbor " + selectedneighbor + ":	Visit Count " + (activeNodes(selectedneighbor) - 1))
                   workers(selectedneighbor) ! Gossiping()
@@ -370,7 +371,7 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
               selectedneighbor = Random.nextInt(numofnodes)
               this.s = this.s / 2
               this.w = this.w / 2
-           if (activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitpushsum_max) {
+           if (selectedneighbor < boundary && activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitpushsum_max) {
               if (math.abs(ratio_prev - ratio_cur) < Killratio && !sender.equals(self))
                 noofvisit = activeNodes(selectedneighbor) - 1
               else
