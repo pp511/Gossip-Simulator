@@ -113,14 +113,6 @@ object start extends App{
 
    def BuildLine(){
         for(currentnode:Int <- 0 to numofnodes-1){
-          if(currentnode ==0) neighbours(0)
-          else if(currentnode == numofnodes-1)
-            neighbours(0) = numofnodes-2
-          else {
-            neighbourcount = 2
-            neighbours(0) = currentnode - 1
-            neighbours(1) = currentnode + 1
-          }
 	      workers(currentnode) = context.actorOf(Props(new Workers(currentnode,topo,
             workers,numofnodes,self,activeNodes,neighbours,0,0,0,0)))
 
@@ -212,12 +204,7 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
     }
     if (check3dimp) {
       l = l + 1
-       var x = Random.nextInt(n)
-       var y = Random.nextInt(n)
-       var z = Random.nextInt(n)
-      neigbourarray(l) = x+n*(y+n*z)//Random.nextInt(n * n * n - 1)
-
-
+     neigbourarray(l) = (Random.nextInt(n * n * n - 1))  % n
     }
 
     var selectnext = Random.nextInt(l)
@@ -314,6 +301,8 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
 
     case Pushsumpair(s: Double, w: Double) =>
       if (completed == false) {
+        val n = math.ceil(math.cbrt(numofnodes)).toInt
+        val boundary = n * n * n
         if (noofvisit == 0)
           Lead ! nodevisited(currentnode, selectedneighbor)
         if (noofvisit == visitpushsum_max) {
@@ -334,7 +323,12 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
               selectedneighbor = line_findneighbor(currentnode)
               s_self = s_self / 2
               w_self = w_self / 2
+           if (activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitpushsum_max) {
+                activeNodes(selectedneighbor) = activeNodes(selectedneighbor) + 1
+                println("selectedneighbor " + selectedneighbor + ":	Visit Count " + (activeNodes(selectedneighbor) - 1))
               workers(selectedneighbor) ! Pushsumpair(s_self, w_self)
+	}
+     	pingself("push")
 
             case "3D" =>
               var ratio_prev = s / w
@@ -349,8 +343,12 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
               selectedneighbor = ThreeD_findneighbor(currentnode, false, l, row, col, ht)
               s_self = s_self / 2
               w_self = w_self / 2
+           if (selectedneighbor < boundary && activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitpushsum_max) {
+                activeNodes(selectedneighbor) = activeNodes(selectedneighbor) + 1
+                println("selectedneighbor " + selectedneighbor + ":	Visit Count " + (activeNodes(selectedneighbor) - 1))
               workers(selectedneighbor) ! Pushsumpair(s_self, w_self)
-
+	   }
+ 	pingself("push")
             case "3dimp" =>
               var ratio_prev = s / w
               s_self = s + s_self
@@ -361,11 +359,34 @@ class Workers(currentnode:Int,topo:String,workers:Array[ActorRef],numofnodes:Int
               else
                 noofvisit = 0
 
-              selectedneighbor = ThreeD_findneighbor(currentnode, false, l, row, col, ht)
+              selectedneighbor = ThreeD_findneighbor(currentnode, true, l, row, col, ht)
               s_self = s_self / 2
               w_self = w_self / 2
+           if (selectedneighbor < boundary && activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitpushsum_max) {
+                activeNodes(selectedneighbor) = activeNodes(selectedneighbor) + 1
+                println("selectedneighbor " + selectedneighbor + ":	Visit Count " + (activeNodes(selectedneighbor) - 1))
               workers(selectedneighbor) ! Pushsumpair(s_self, w_self)
+	   }
+       pingself("push")
+           case "full" =>
+              var ratio_prev = s / w
+              s_self = s + s_self
+              w_self = w + w_self
+              var ratio_cur = s_self / w_self
+              if (math.abs(ratio_prev - ratio_cur) < Killratio && !sender.equals(self))
+                noofvisit = noofvisit + 1
+              else
+                noofvisit = 0
 
+              selectedneighbor = Random.nextInt(numofnodes)
+              s_self = s_self / 2
+              w_self = w_self / 2
+           if (activeNodes(selectedneighbor) != 0 && activeNodes(selectedneighbor) <= visitpushsum_max) {
+                activeNodes(selectedneighbor) = activeNodes(selectedneighbor) + 1
+                println("selectedneighbor " + selectedneighbor + ":	Visit Count " + (activeNodes(selectedneighbor) - 1))
+              workers(selectedneighbor) ! Pushsumpair(s_self, w_self)
+		}
+          pingself("push")	
             case _ =>
           }
 
